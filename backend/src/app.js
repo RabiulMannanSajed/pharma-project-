@@ -15,7 +15,27 @@ const app = express();
 
 // Security & utilities
 app.use(helmet());
-app.use(cors());
+
+// CORS: allow local dev + Vercel frontend in production
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL, // e.g. https://your-app.vercel.app
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow same-origin (no origin), curl, Postman, etc.
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.some((o) => origin === o || origin.endsWith('.vercel.app'))) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV !== 'test') {

@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.env.local
+.DS_Store
+*.log
+.vscode
+.idea
+.puku-cli/
+Pharmacy Sales Management System Project Prompt.md

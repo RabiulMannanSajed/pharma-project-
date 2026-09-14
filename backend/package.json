@@ -1,0 +1,38 @@
+{
+  "name": "pharmacy-sales-management-backend",
+  "version": "1.0.0",
+  "description": "Pharmacy Sales Management System - Backend (Node.js, Express, MongoDB, Mongoose)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/seed.js",
+    "reset-admin": "node src/scripts/reset-admin.js"
+  },
+  "keywords": [
+    "pharmacy",
+    "sales",
+    "management",
+    "express",
+    "mongoose",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "http-status": "^1.7.4",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^7.6.0",
+    "mongoose": "^8.6.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

@@ -1,6 +1,12 @@
 /**
  * Dashboard aggregator: combines sales + attendance + user data
  * for the admin overview and salesman's personal dashboard.
+ *
+ * Attendance counts:
+ *   - "Present" / "Late" come from explicit Attendance.status rows for today.
+ *   - "Absent" is inferred: any active salesman who did NOT mark anything today
+ *     is treated as Absent. This matches the behavior used in
+ *     attendance.service.js -> dailySummary.
  */
 const mongoose = require('mongoose');
 const Sale = require('../Sales/sale.model');
@@ -23,13 +29,32 @@ const sumAgg = async (match) => {
   return res || { totalAmount: 0, totalSales: 0 };
 };
 
-const attendanceAgg = async (match) => {
-  const res = await Attendance.aggregate([
-    { $match: match },
-    { $group: { _id: '$status', count: { $sum: 1 } } },
+/**
+ * Counts of attendance status for a given day, taking unmarked salesmen
+ * into account as "Absent" so the admin sees the real picture.
+ */
+const attendanceAgg = async (from, to) => {
+  const filter = { date: { $gte: from, $lte: to } };
+
+  const [byStatus, markedIds, totalActiveSalesmen] = await Promise.all([
+    Attendance.aggregate([
+      { $match: filter },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+    Attendance.find(filter).distinct('salesman'),
+    User.countDocuments({ role: 'salesman', isActive: true }),
   ]);
+
   const counts = { Present: 0, Absent: 0, Late: 0 };
-  for (const c of res) counts[c._id] = c.count;
+  for (const c of byStatus) {
+    if (counts[c._id] !== undefined) counts[c._id] = c.count;
+  }
+
+  // Anyone active who didn't mark anything today is counted as Absent.
+  const markedCount = markedIds.length;
+  const inferredAbsent = Math.max(totalActiveSalesmen - markedCount, 0);
+  counts.Absent += inferredAbsent;
+
   return counts;
 };
 
@@ -67,13 +92,12 @@ const adminDashboard = async () => {
     topMonth,
     recentSales,
     salesChart,
-    attendanceChart,
     monthlyPerformance,
   ] = await Promise.all([
     sumAgg({ date: { $gte: today.from, $lte: today.to } }),
     sumAgg({ date: { $gte: week.from, $lte: week.to } }),
     sumAgg({ date: { $gte: month.from, $lte: month.to } }),
-    attendanceAgg({ date: { $gte: today.from, $lte: today.to } }),
+    attendanceAgg(today.from, today.to),
     User.countDocuments({ role: 'salesman' }),
     User.countDocuments({ role: 'salesman', isActive: true }),
     Sale.aggregate([
@@ -103,7 +127,6 @@ const adminDashboard = async () => {
       .limit(10)
       .populate('salesman', 'name email'),
     dailySalesSeries(week.from, week.to),
-    Promise.resolve(null), // placeholder so the tuple stays aligned
     Sale.aggregate([
       { $match: { date: { $gte: month.from, $lte: month.to } } },
       { $group: { _id: '$salesman', totalAmount: { $sum: '$amount' } } },

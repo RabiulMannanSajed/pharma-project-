@@ -19,6 +19,9 @@ app.use(helmet());
 // CORS: allow local dev + Vercel frontend in production
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://127.0.0.1:5000',
   'http://localhost:3000',
   process.env.FRONTEND_URL, // e.g. https://your-app.vercel.app
 ].filter(Boolean);

@@ -7,8 +7,19 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/icon-192.svg', 'icons/icon-512.svg', 'robots.txt'],
+      filename: 'sw.js',
+      scope: '/',
+      injectRegister: false, // we register manually in src/main.jsx (gives us update toast)
+      includeAssets: [
+        'favicon.svg',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/icon-maskable-512.png',
+        'icons/apple-touch-icon.png',
+        'robots.txt',
+      ],
       manifest: {
+        id: '/?source=pwa',
         name: 'Pharmacy Sales Management',
         short_name: 'Pharma Sales',
         description: 'Pharmacy Sales & Employee Management System',
@@ -20,21 +31,30 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/icons/icon-192.svg',
+            src: '/icons/icon-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: '/icons/icon-512.svg',
+            src: '/icons/icon-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp}'],
+        // Match the built SW path
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,webmanifest}'],
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
@@ -42,6 +62,8 @@ export default defineConfig({
             options: {
               cacheName: 'api-cache',
               networkTimeoutSeconds: 5,
+              // CRITICAL: never serve cached 401/403/500 — would lock users out after logout
+              cacheableResponse: { statuses: [0, 200] },
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
             },
           },
@@ -50,6 +72,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'image-cache',
+              cacheableResponse: { statuses: [0, 200] },
               expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
@@ -60,6 +83,7 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'google-fonts-cache',
+              cacheableResponse: { statuses: [0, 200] },
               expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },

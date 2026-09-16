@@ -17,15 +17,18 @@ export const DashboardLayout = ({ role: roleProp, children }) => {
 
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar (>= lg) */}
       <div className="hidden lg:block fixed inset-y-0 left-0 z-30">
         <Sidebar role={layoutRole} />
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer (< lg) */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-slate-900/60" onClick={() => setSidebarOpen(false)} />
+          <div
+            className="absolute inset-0 bg-slate-900/60"
+            onClick={() => setSidebarOpen(false)}
+          />
           <div className="absolute inset-y-0 left-0 animate-slide-up">
             <Sidebar role={layoutRole} onClose={() => setSidebarOpen(false)} />
           </div>
@@ -35,10 +38,15 @@ export const DashboardLayout = ({ role: roleProp, children }) => {
       <div className="flex-1 lg:ml-64 flex flex-col min-w-0">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Main content — extra bottom padding on mobile so the bottom nav never overlaps anything */}
+        {/* Mobile: tight top padding, breathing bottom for the bar + FAB
+            Desktop: regular padding, no bottom clearance
+            The CSS var --bn is set on mobile via inline style and provides exact clearance. */}
         <main
-          className="flex-1 p-4 lg:p-6 max-w-full overflow-x-hidden"
-          style={{ paddingBottom: 'max(6rem, calc(env(safe-area-inset-bottom) + 5rem))' }}
+          className="flex-1 px-4 sm:px-6 lg:px-6 pt-4 lg:pt-6 pb-4 lg:pb-6 max-w-full overflow-x-hidden"
+          style={{
+            paddingBottom:
+              'max(var(--bn, 7.5rem), calc(env(safe-area-inset-bottom) + 6rem))',
+          }}
         >
           {children || <Outlet />}
         </main>

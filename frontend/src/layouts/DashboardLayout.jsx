@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { MobileBottomNav } from '../components/MobileBottomNav';
 import { useAuth } from '../hooks/useAuth';
 
 export const DashboardLayout = ({ role: roleProp, children }) => {
@@ -33,9 +34,17 @@ export const DashboardLayout = ({ role: roleProp, children }) => {
 
       <div className="flex-1 lg:ml-64 flex flex-col min-w-0">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6 max-w-full overflow-x-hidden">
+
+        {/* Main content — extra bottom padding on mobile so the bottom nav never overlaps anything */}
+        <main
+          className="flex-1 p-4 lg:p-6 max-w-full overflow-x-hidden"
+          style={{ paddingBottom: 'max(6rem, calc(env(safe-area-inset-bottom) + 5rem))' }}
+        >
           {children || <Outlet />}
         </main>
+
+        {/* iOS-style bottom tab bar (mobile only) */}
+        <MobileBottomNav role={layoutRole} />
       </div>
     </div>
   );

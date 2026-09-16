@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
+import { InstallPWA } from '../components/InstallPWA';
 import { useAuth } from '../hooks/useAuth';
 
 export const DashboardLayout = ({ role: roleProp, children }) => {
@@ -38,9 +39,6 @@ export const DashboardLayout = ({ role: roleProp, children }) => {
       <div className="flex-1 lg:ml-64 flex flex-col min-w-0">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Mobile: tight top padding, breathing bottom for the bar + FAB
-            Desktop: regular padding, no bottom clearance
-            The CSS var --bn is set on mobile via inline style and provides exact clearance. */}
         <main
           className="flex-1 px-4 sm:px-6 lg:px-6 pt-4 lg:pt-6 pb-4 lg:pb-6 max-w-full overflow-x-hidden"
           style={{
@@ -53,6 +51,9 @@ export const DashboardLayout = ({ role: roleProp, children }) => {
 
         {/* iOS-style bottom tab bar (mobile only) */}
         <MobileBottomNav role={layoutRole} />
+
+        {/* Install app button / iOS hint */}
+        <InstallPWA />
       </div>
     </div>
   );

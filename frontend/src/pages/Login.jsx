@@ -9,6 +9,7 @@ import { Pill, Moon, Sun, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { validateLogin } from '../utils/validators';
 import { ROLES } from '../utils/constants';
+import { InstallPWA } from '../components/InstallPWA';
 
 const Login = () => {
   const { login, isAuthenticated, role, bootstrapping } = useAuth();
@@ -65,6 +66,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-brand-50/40 to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+      <InstallPWA />
       <button
         onClick={toggleTheme}
         className="fixed top-4 right-4 p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm hover:bg-white dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"

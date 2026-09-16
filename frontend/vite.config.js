@@ -9,7 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       filename: 'sw.js',
       scope: '/',
-      injectRegister: false, // we register manually in src/main.jsx (gives us update toast)
+      // We register manually in src/main.jsx so we can show an update toast.
+      injectRegister: false,
       includeAssets: [
         'favicon.svg',
         'icons/icon-192.png',
@@ -17,6 +18,7 @@ export default defineConfig({
         'icons/icon-maskable-512.png',
         'icons/apple-touch-icon.png',
         'robots.txt',
+        '_redirects',
       ],
       manifest: {
         id: '/?source=pwa',
@@ -26,9 +28,14 @@ export default defineConfig({
         theme_color: '#0f766e',
         background_color: '#0f172a',
         display: 'standalone',
+        display_override: ['standalone', 'fullscreen', 'minimal-ui'],
         orientation: 'portrait',
         start_url: '/',
         scope: '/',
+        lang: 'en',
+        categories: ['business', 'productivity', 'medical'],
+        // CRITICAL for install: must explicitly say no native app
+        prefer_related_applications: false,
         icons: [
           {
             src: '/icons/icon-192.png',
@@ -51,7 +58,6 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Match the built SW path
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,webmanifest}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
@@ -62,7 +68,7 @@ export default defineConfig({
             options: {
               cacheName: 'api-cache',
               networkTimeoutSeconds: 5,
-              // CRITICAL: never serve cached 401/403/500 — would lock users out after logout
+              // Never cache 401/403/500 — would lock users out after logout
               cacheableResponse: { statuses: [0, 200] },
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
             },
@@ -98,14 +104,8 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
-      '/health': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
+      '/api': { target: 'http://localhost:5000', changeOrigin: true },
+      '/health': { target: 'http://localhost:5000', changeOrigin: true },
     },
   },
 });

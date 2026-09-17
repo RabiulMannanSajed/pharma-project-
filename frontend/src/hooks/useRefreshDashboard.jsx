@@ -47,7 +47,7 @@ export const useRefreshDashboard = () => {
         setIsRefreshing(false);
       }
     },
-    [qc]
+    [qc, hardReload]
   );
 
   // Hard reload: nuke SW caches then full page reload. Catches the case where

@@ -4,11 +4,9 @@ import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/StatCard';
 import { Spinner } from '../../components/ui/Spinner';
 import { SalesLineChart } from '../../components/charts/SalesLineChart';
-import { SalesBarChart } from '../../components/charts/SalesBarChart';
-import { AttendancePieChart } from '../../components/charts/AttendancePieChart';
 import { PerformanceChart } from '../../components/charts/PerformanceChart';
 import { formatCurrency, formatDateTime, formatNumber } from '../../utils/formatters';
-import { Badge } from '../../components/ui/Badge';
+
 import {
   DollarSign,
   Users,
@@ -47,16 +45,10 @@ const Dashboard = () => {
   const charts = d.charts || {};
   const recentSales = d.recentSales || [];
 
-  const attendanceData = Object.entries(charts.attendanceToday || {}).map(([name, value]) => ({
-    name,
-    value,
-  }));
-
   const performanceData = (charts.monthlySalesPerformance || []).map((m) => ({
     name: m.salesman?.name || 'Unknown',
     totalAmount: m.totalAmount,
   }));
-
   const weeklyChartData = (charts.dailySalesThisWeek || []).map((d) => ({
     date: d.date,
     totalAmount: d.totalAmount,
@@ -133,11 +125,6 @@ const Dashboard = () => {
         <Card title="Daily Sales (This Week)">
           <SalesLineChart data={weeklyChartData} height={260} />
         </Card>
-
-        <Card title="Today's Attendance">
-          <AttendancePieChart data={attendanceData} />
-        </Card>
-
         <Card title="Monthly Performance by Salesman">
           <PerformanceChart data={performanceData} height={280} />
         </Card>

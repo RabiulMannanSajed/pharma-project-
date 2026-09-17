@@ -102,6 +102,20 @@ const deleteUser = async (id) => {
   return user.toSafeJSON();
 };
 
+/**
+ * Admin: reset a salesman's password without needing the current one.
+ */
+const adminResetPassword = async (id, newPassword) => {
+  if (!newPassword || String(newPassword).length < 6) {
+    throw new ApiError(400, 'Password must be at least 6 characters');
+  }
+  const user = await User.findById(id).select('+password');
+  if (!user) throw new ApiError(404, 'User not found');
+  user.password = String(newPassword);
+  await user.save();
+  return { _id: user._id.toString() };
+};
+
 module.exports = {
   createUser,
   listUsers,
@@ -109,4 +123,5 @@ module.exports = {
   updateUser,
   setUserActive,
   deleteUser,
+  adminResetPassword,
 };

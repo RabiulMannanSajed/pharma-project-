@@ -64,4 +64,12 @@ router.delete(
   userController.deleteUser
 );
 
+router.post(
+  '/:id/reset-password',
+  protect,
+  authorize('admin'),
+  validate(validation.resetPassword),
+  userController.adminResetPassword
+);
+
 module.exports = router;

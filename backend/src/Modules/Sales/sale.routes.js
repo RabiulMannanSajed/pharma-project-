@@ -12,7 +12,13 @@ router.get('/reports/daily', protect, saleController.dailyReport);
 router.get('/reports/weekly', protect, saleController.weeklyReport);
 router.get('/reports/monthly', protect, saleController.monthlyReport);
 router.get('/reports/custom', protect, validate(validation.customReportQuery), saleController.customReport);
-router.get('/reports/daily-series', protect, saleController.dailySeries);
+router.get(
+  '/reports/daily-series',
+  protect,
+  validate(validation.dailySeriesQuery),
+  saleController.dailySeries
+);
+router.get('/reports/performance', protect, authorize('admin'), saleController.performanceBySalesman);
 
 router.get('/my-sales', protect, validate(validation.listQuery), saleController.mySales);
 

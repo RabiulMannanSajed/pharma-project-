@@ -3,7 +3,8 @@ const Joi = require('joi');
 const objectId = Joi.string().hex().length(24).message('Invalid id');
 
 const createSaleSchema = Joi.object({
-  amount: Joi.number().min(0).required(),
+  amount: Joi.number().greater(0).required(),
+  salesmanId: objectId.optional(),
   date: Joi.date().iso().optional(),
   productName: Joi.string().trim().max(120).allow('').optional(),
   quantity: Joi.number().integer().min(0).allow(null).optional(),
@@ -11,7 +12,7 @@ const createSaleSchema = Joi.object({
 });
 
 const updateSaleSchema = Joi.object({
-  amount: Joi.number().min(0).optional(),
+  amount: Joi.number().greater(0).optional(),
   date: Joi.date().iso().optional(),
   productName: Joi.string().trim().max(120).allow('').optional(),
   quantity: Joi.number().integer().min(0).allow(null).optional(),
@@ -52,6 +53,12 @@ const customReportQuery = Joi.object({
   salesmanId: objectId.optional(),
 });
 
+const dailySeriesQuery = Joi.object({
+  from: Joi.date().iso().required(),
+  to: Joi.date().iso().required(),
+  salesmanId: objectId.optional(),
+});
+
 module.exports = {
   createSale: { body: createSaleSchema },
   updateSale: { body: updateSaleSchema, params: idParam },
@@ -59,4 +66,5 @@ module.exports = {
   listQuery: { query: listQuery },
   rangeQuery: { query: rangeQuery },
   customReportQuery: { query: customReportQuery },
+  dailySeriesQuery: { query: dailySeriesQuery },
 };

@@ -8,12 +8,10 @@ const attendanceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Salesman reference is required'],
-      index: true,
     },
     date: {
       type: Date,
       required: [true, 'Attendance date is required'],
-      index: true,
     },
     status: {
       type: String,
@@ -33,8 +31,10 @@ const attendanceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One attendance record per salesman per day
-attendanceSchema.index({ salesman: 1, date: 1 }, { unique: true });
+// One attendance record per salesman per day.
+attendanceSchema.index({ salesman: 1, date: -1 }, { unique: true });
+// Admin-wide date-range scans.
+attendanceSchema.index({ date: -1 });
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
 

@@ -14,5 +14,6 @@ router.post(
   authController.changePassword
 );
 router.get('/me', protect, authController.me);
+router.patch('/me', protect, validate(authValidation.updateProfile), authController.updateMe);
 
 module.exports = router;

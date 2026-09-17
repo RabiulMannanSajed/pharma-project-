@@ -46,4 +46,37 @@ const me = async (userId) => {
   return user.toSafeJSON();
 };
 
-module.exports = { login, changePassword, me };
+/**
+ * Update the currently-authenticated user's own profile (name/phone/email).
+ * Role and isActive cannot be changed here.
+ */
+const updateMe = async (userId, updates) => {
+  const allowed = {};
+  if (updates.name !== undefined) allowed.name = String(updates.name).trim();
+  if (updates.phone !== undefined) allowed.phone = String(updates.phone).trim();
+  if (updates.email !== undefined) allowed.email = String(updates.email).trim().toLowerCase();
+
+  if (Object.keys(allowed).length === 0) {
+    throw new ApiError(400, 'No editable fields provided');
+  }
+
+  if (allowed.email || allowed.phone) {
+    const conflictQuery = { _id: { $ne: userId } };
+    if (allowed.email) conflictQuery.email = allowed.email;
+    if (allowed.phone) conflictQuery.phone = allowed.phone;
+    const conflict = await User.findOne(conflictQuery);
+    if (conflict) {
+      const field = allowed.email && conflict.email === allowed.email ? 'email' : 'phone';
+      throw new ApiError(409, `Another user already uses this ${field}`);
+    }
+  }
+
+  const user = await User.findByIdAndUpdate(userId, allowed, {
+    new: true,
+    runValidators: true,
+  });
+  if (!user) throw new ApiError(404, 'User not found');
+  return user.toSafeJSON();
+};
+
+module.exports = { login, changePassword, me, updateMe };

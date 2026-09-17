@@ -17,4 +17,9 @@ const me = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, user, 'Current user fetched'));
 });
 
-module.exports = { login, changePassword, me };
+const updateMe = asyncHandler(async (req, res) => {
+  const user = await authService.updateMe(req.user._id.toString(), req.body);
+  res.status(200).json(new ApiResponse(200, user, 'Profile updated'));
+});
+
+module.exports = { login, changePassword, me, updateMe };

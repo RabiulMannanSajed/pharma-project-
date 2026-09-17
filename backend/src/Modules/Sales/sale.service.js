@@ -1,17 +1,31 @@
 const Sale = require('./sale.model');
 const mongoose = require('mongoose');
-const User = require('../Users/user.model');
 const ApiError = require('../../Utils/ApiError');
 const { buildDateRange, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } =
   require('../../Utils/dateHelpers');
 
 /**
- * Create a new sale. Auto-attached to logged-in salesman.
+ * Create a new sale.
+ * - Salesmen: the sale is always attached to themselves (salesmanId in body, if any, is ignored).
+ * - Admins: they may pass `salesmanId` in the body to attribute the sale to a specific
+ *   salesman; otherwise it is attributed to the admin themselves.
  */
-const createSale = async (userId, payload) => {
+const createSale = async (reqUser, payload) => {
+  let salesmanId;
+  if (reqUser.role === 'admin') {
+    salesmanId = payload.salesmanId || reqUser._id.toString();
+  } else {
+    // Salesman can only create sales for themselves; ignore any salesmanId they pass.
+    salesmanId = reqUser._id.toString();
+  }
+
+  // Strip any extra fields so unknown keys never sneak into Mongo.
   const sale = await Sale.create({
-    ...payload,
-    salesman: userId,
+    amount: payload.amount,
+    productName: payload.productName,
+    quantity: payload.quantity,
+    notes: payload.notes,
+    salesman: salesmanId,
     date: payload.date ? new Date(payload.date) : new Date(),
   });
   return sale;
@@ -108,7 +122,6 @@ const deleteSale = async (reqUser, saleId) => {
 
 /**
  * Compute totals for a salesman or all salesmen within a date range.
- * Returns: { totalAmount, totalSales, bySalesman: [{ salesman, totalAmount, totalSales }] }
  */
 const summarizeRange = async (reqUser, range) => {
   const { from, to } = range;
@@ -185,9 +198,6 @@ const summarizeRange = async (reqUser, range) => {
   };
 };
 
-/**
- * Convenience report wrappers using current date.
- */
 const dailyReport = (reqUser, date) =>
   summarizeRange(reqUser, { from: startOfDay(date), to: endOfDay(date) });
 
@@ -207,7 +217,6 @@ const customReport = async (reqUser, { range, startDate, endDate, salesmanId, da
   let result = await summarizeRange(reqUser, built);
 
   if (reqUser.role === 'admin' && salesmanId) {
-    // Restrict summary to the requested salesman
     const match = {
       date: { $gte: built.from, $lte: built.to },
       salesman: new mongoose.Types.ObjectId(salesmanId),
@@ -221,6 +230,12 @@ const customReport = async (reqUser, { range, startDate, endDate, salesmanId, da
       totalAmount: agg?.totalAmount || 0,
       totalSales: agg?.totalSales || 0,
       bySalesman: result.bySalesman.filter((b) => b.salesman._id.toString() === salesmanId),
+      topSalesman: agg
+        ? {
+            salesman: result.bySalesman.find((b) => b.salesman._id.toString() === salesmanId)?.salesman,
+            totalAmount: agg.totalAmount,
+          }
+        : null,
     };
   }
 
@@ -228,11 +243,13 @@ const customReport = async (reqUser, { range, startDate, endDate, salesmanId, da
 };
 
 /**
- * Per-day aggregated series (for charts): [{ date: 'YYYY-MM-DD', totalAmount, totalSales }]
+ * Per-day aggregated series (for charts).
+ * Optional salesmanId is honored for admin requests; ignored (overridden by reqUser._id) for salesmen.
  */
-const dailySeries = async (reqUser, { from, to }) => {
+const dailySeries = async (reqUser, { from, to, salesmanId }) => {
   const match = { date: { $gte: from, $lte: to } };
   if (reqUser.role === 'salesman') match.salesman = reqUser._id;
+  else if (salesmanId) match.salesman = new mongoose.Types.ObjectId(salesmanId);
 
   const series = await Sale.aggregate([
     { $match: match },
@@ -250,6 +267,53 @@ const dailySeries = async (reqUser, { from, to }) => {
   return series;
 };
 
+/**
+ * Admin: per-salesman aggregate over an optional date range.
+ */
+const performanceBySalesman = async ({ from, to } = {}) => {
+  const match = {};
+  if (from || to) {
+    match.date = {};
+    if (from) match.date.$gte = new Date(from);
+    if (to) match.date.$lte = new Date(to);
+  }
+  return Sale.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: '$salesman',
+        totalAmount: { $sum: '$amount' },
+        totalSales: { $sum: 1 },
+        lastSaleAt: { $max: '$date' },
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'salesman',
+      },
+    },
+    { $unwind: '$salesman' },
+    {
+      $project: {
+        _id: 0,
+        salesman: {
+          _id: '$salesman._id',
+          name: '$salesman.name',
+          email: '$salesman.email',
+          isActive: '$salesman.isActive',
+        },
+        totalAmount: 1,
+        totalSales: 1,
+        lastSaleAt: 1,
+      },
+    },
+    { $sort: { totalAmount: -1 } },
+  ]);
+};
+
 module.exports = {
   createSale,
   listSales,
@@ -261,4 +325,5 @@ module.exports = {
   monthlyReport,
   customReport,
   dailySeries,
+  performanceBySalesman,
 };

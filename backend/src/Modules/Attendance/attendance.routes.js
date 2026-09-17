@@ -7,16 +7,19 @@ const authorize = require('../../Middleware/role');
 
 const router = express.Router();
 
-// Reports (place BEFORE parameterized routes)
-router.get('/daily', protect, attendanceController.dailyAttendance);
-router.get('/monthly', protect, validate(validation.monthlyQuery), attendanceController.monthlyAttendance);
+// Admin-only reports
+router.get('/daily', protect, authorize('admin'), attendanceController.dailyAttendance);
+router.get('/monthly', protect, authorize('admin'), validate(validation.monthlyQuery), attendanceController.monthlyAttendance);
 router.get('/my-monthly-stats', protect, validate(validation.monthlyQuery), attendanceController.myMonthlyStats);
 
 router.get('/my-attendance', protect, validate(validation.myAttendanceQuery), attendanceController.myAttendance);
 
-router.get('/', protect, validate(validation.listQuery), attendanceController.listAttendance);
+// Listing all attendance is admin-only. Salesmen must use /my-attendance.
+router.get('/', protect, authorize('admin'), validate(validation.listQuery), attendanceController.listAttendance);
 router.post('/', protect, validate(validation.markAttendance), attendanceController.markAttendance);
 
+// PATCH and DELETE go through the controller, which enforces ownership: admin can modify any,
+// salesman can modify only their own.
 router.patch(
   '/:id',
   protect,

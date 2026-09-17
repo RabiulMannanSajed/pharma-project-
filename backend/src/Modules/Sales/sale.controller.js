@@ -3,7 +3,7 @@ const asyncHandler = require('../../Utils/asyncHandler');
 const ApiResponse = require('../../Utils/ApiResponse');
 
 const createSale = asyncHandler(async (req, res) => {
-  const sale = await saleService.createSale(req.user._id.toString(), req.body);
+  const sale = await saleService.createSale(req.user, req.body);
   res.status(201).json(new ApiResponse(201, sale, 'Sale created'));
 });
 
@@ -52,6 +52,11 @@ const dailySeries = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, data, 'Daily series fetched'));
 });
 
+const performanceBySalesman = asyncHandler(async (req, res) => {
+  const data = await saleService.performanceBySalesman(req.query);
+  res.status(200).json(new ApiResponse(200, data, 'Salesman performance fetched'));
+});
+
 module.exports = {
   createSale,
   listSales,
@@ -63,4 +68,5 @@ module.exports = {
   monthlyReport,
   customReport,
   dailySeries,
+  performanceBySalesman,
 };

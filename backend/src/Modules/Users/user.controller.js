@@ -3,7 +3,8 @@ const asyncHandler = require('../../Utils/asyncHandler');
 const ApiResponse = require('../../Utils/ApiResponse');
 
 const createSalesman = asyncHandler(async (req, res) => {
-  const user = await userService.createUser({ ...req.body, role: req.body.role || 'salesman' });
+  // SECURITY: role is hardcoded to salesman. Admin cannot self-promote or create another admin here.
+  const user = await userService.createUser({ ...req.body, role: 'salesman' });
   res.status(201).json(new ApiResponse(201, user, 'Salesman created successfully'));
 });
 
@@ -37,6 +38,11 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, user, 'User deleted'));
 });
 
+const adminResetPassword = asyncHandler(async (req, res) => {
+  await userService.adminResetPassword(req.params.id, req.body.newPassword);
+  res.status(200).json(new ApiResponse(200, null, 'Password reset successfully'));
+});
+
 module.exports = {
   createSalesman,
   listUsers,
@@ -45,4 +51,5 @@ module.exports = {
   activateUser,
   deactivateUser,
   deleteUser,
+  adminResetPassword,
 };

@@ -35,7 +35,7 @@ export const validateSale = ({ amount, quantity }) => {
   const errors = {};
   const a = Number(amount);
   if (amount === '' || amount == null) errors.amount = 'Amount is required';
-  else if (isNaN(a) || a < 0) errors.amount = 'Amount must be a non-negative number';
+  else if (isNaN(a) || a <= 0) errors.amount = 'Amount must be greater than 0';
   if (quantity !== '' && quantity != null) {
     const q = Number(quantity);
     if (isNaN(q) || q < 0 || !Number.isInteger(q)) errors.quantity = 'Quantity must be a non-negative integer';

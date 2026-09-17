@@ -13,3 +13,6 @@ export const activateUser = (id) => api.patch(`/users/${id}/activate`);
 export const deactivateUser = (id) => api.patch(`/users/${id}/deactivate`);
 
 export const deleteUser = (id) => api.delete(`/users/${id}`);
+
+export const adminResetPassword = (id, newPassword) =>
+  api.post(`/users/${id}/reset-password`, { newPassword });

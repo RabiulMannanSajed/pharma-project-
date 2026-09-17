@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { listSales, createSale, updateSale, deleteSale } from '../../api/sales';
+import { listUsers } from '../../api/users';
+import { Select } from '../../components/ui/Select';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
@@ -21,6 +23,7 @@ const emptyForm = {
   quantity: '',
   date: '',
   notes: '',
+  salesmanId: '',
 };
 
 const Sales = () => {
@@ -37,6 +40,18 @@ const Sales = () => {
     queryKey: ['sales', { page }],
     queryFn: () => listSales({ page, limit: 20 }),
   });
+
+  // Salesman picker for the create/edit form (admins attribute sales to salesmen).
+  const { data: salesmenData } = useQuery({
+    queryKey: ['salesmen-for-sales'],
+    queryFn: () => listUsers({ page: 1, limit: 100, role: 'salesman' }),
+    staleTime: 60_000,
+  });
+  const salesmen = (salesmenData?.items || []).filter((u) => u.isActive);
+  const salesmanOptions = [
+    { value: '', label: '— Self (admin) —' },
+    ...salesmen.map((s) => ({ value: s._id, label: s.name })),
+  ];
 
   const items = data?.items || [];
   const totalPages = data?.totalPages || 1;
@@ -86,9 +101,10 @@ const Sales = () => {
     setForm({
       amount: String(s.amount ?? ''),
       productName: s.productName || '',
-      quantity: s.quantity ?? '',
+      quantity: s.quantity != null ? String(s.quantity) : '',
       date: s.date ? new Date(s.date).toISOString().slice(0, 10) : '',
       notes: s.notes || '',
+      salesmanId: s.salesman?._id || s.salesman || '',
     });
     setErrors({});
     setModalOpen(true);
@@ -120,6 +136,7 @@ const Sales = () => {
       quantity: form.quantity === '' ? undefined : Number(form.quantity),
       date: form.date || undefined,
       notes: form.notes || undefined,
+      salesmanId: form.salesmanId || undefined,
     };
     if (editing) {
       updateMut.mutate({ id: editing._id, payload });
@@ -166,10 +183,11 @@ const Sales = () => {
               <THead>
                 <tr>
                   <TH>Salesman</TH>
+                  <TH>Amount</TH>
                   <TH>Product</TH>
-                  <TH>Quantity</TH>
-                  <TH className="text-right">Amount</TH>
+                  <TH>Qty</TH>
                   <TH>Date</TH>
+                  <TH>Notes</TH>
                   <TH className="text-right">Actions</TH>
                 </tr>
               </THead>
@@ -177,37 +195,34 @@ const Sales = () => {
                 {items.map((s) => (
                   <TR key={s._id}>
                     <TD>
-                      <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 flex items-center justify-center text-xs font-semibold">
-                          {s.salesman?.name?.[0]?.toUpperCase() || '?'}
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-800 dark:text-slate-100">{s.salesman?.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{s.salesman?.email}</p>
-                        </div>
+                      <div className="font-medium text-slate-800 dark:text-slate-100">
+                        {s.salesman?.name || '—'}
                       </div>
+                    </TD>
+                    <TD>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(s.amount)}
+                      </span>
                     </TD>
                     <TD>{s.productName || '—'}</TD>
                     <TD>{s.quantity ?? '—'}</TD>
-                    <TD className="text-right font-semibold text-slate-800 dark:text-slate-100">
-                      {formatCurrency(s.amount)}
-                    </TD>
-                    <TD>{formatDate(s.date || s.createdAt)}</TD>
-                    <TD>
-                      <div className="flex justify-end gap-1">
+                    <TD>{formatDate(s.date)}</TD>
+                    <TD className="max-w-xs truncate">{s.notes || '—'}</TD>
+                    <TD className="text-right">
+                      <div className="inline-flex items-center gap-2">
                         <button
                           onClick={() => openEdit(s)}
-                          className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-emerald-600 dark:hover:bg-slate-700 dark:hover:text-emerald-400"
                           aria-label="Edit"
                         >
-                          <Edit2 className="h-4 w-4" />
+                          <Edit2 size={16} />
                         </button>
                         <button
                           onClick={() => setConfirmDelete(s)}
-                          className="p-1.5 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400"
+                          className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-700 dark:hover:text-rose-400"
                           aria-label="Delete"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </TD>
@@ -215,9 +230,11 @@ const Sales = () => {
                 ))}
               </TBody>
             </Table>
-            <div className="p-4">
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-            </div>
+            {totalPages > 1 && (
+              <div className="border-t border-slate-200 p-3 dark:border-slate-700">
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+            )}
           </>
         )}
       </Card>
@@ -226,7 +243,6 @@ const Sales = () => {
         open={modalOpen}
         onClose={closeModal}
         title={editing ? 'Edit Sale' : 'New Sale'}
-        size="md"
         footer={
           <>
             <Button variant="secondary" onClick={closeModal} disabled={saving}>
@@ -250,6 +266,14 @@ const Sales = () => {
             error={errors.amount}
             required
           />
+          <Select
+            label="Salesman"
+            name="salesmanId"
+            value={form.salesmanId}
+            onChange={onChange}
+            options={salesmanOptions}
+            help="Optional. Leave blank to attribute this sale to yourself (admin)."
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Product Name (optional)"
@@ -262,8 +286,8 @@ const Sales = () => {
             <Input
               label="Quantity (optional)"
               type="number"
-              min="0"
               step="1"
+              min="0"
               name="quantity"
               value={form.quantity}
               onChange={onChange}
@@ -276,6 +300,7 @@ const Sales = () => {
             name="date"
             value={form.date}
             onChange={onChange}
+            help="Leave blank for today."
           />
           <Textarea
             label="Notes (optional)"
@@ -290,11 +315,16 @@ const Sales = () => {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        onConfirm={() => confirmDelete && deleteMut.mutate(confirmDelete._id)}
         title="Delete sale?"
-        message="This action cannot be undone."
-        loading={deleteMut.isPending}
+        message={
+          confirmDelete
+            ? `This sale of ${formatCurrency(confirmDelete.amount)} will be permanently removed.`
+            : ''
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => deleteMut.mutate(confirmDelete._id)}
+        onCancel={() => setConfirmDelete(null)}
       />
     </div>
   );

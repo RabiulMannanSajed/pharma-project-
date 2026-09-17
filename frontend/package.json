@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/sync-pwa.cjs",
+    "build:fast": "vite build",
+    "pwa:sync": "node scripts/sync-pwa.cjs",
     "preview": "vite preview --port 5173"
   },
   "dependencies": {

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
+import { updateMe } from '../../api/auth';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -8,13 +10,37 @@ import { Mail, Phone, Calendar, UserCircle, KeyRound } from 'lucide-react';
 import { formatDate } from '../../utils/formatters';
 import { Link } from 'react-router-dom';
 import { isEmail, isPhone } from '../../utils/validators';
+import toast from 'react-hot-toast';
 
 const Profile = () => {
   const { user, updateProfile } = useAuth();
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', email: user?.email || '' });
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: user?.name || '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+  });
   const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState(null);
+
+  useEffect(() => {
+    setForm({
+      name: user?.name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+    });
+  }, [user]);
+
+  const updateMut = useMutation({
+    mutationFn: updateMe,
+    onSuccess: (data) => {
+      const fresh = data?.data || data;
+      updateProfile(fresh);
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['users', user?._id] });
+      toast.success('Profile updated');
+    },
+    onError: (e) => toast.error(e?.message || 'Failed to update'),
+  });
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -33,14 +59,11 @@ const Profile = () => {
       setErrors(errs);
       return;
     }
-    setSaving(true);
-    setTimeout(() => {
-      // Profile is read-only on the user model from the frontend for now
-      // (admin can only edit via the backend admin routes; this is a placeholder).
-      updateProfile(form);
-      setSaving(false);
-      setSavedAt(new Date());
-    }, 400);
+    updateMut.mutate({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+    });
   };
 
   return (
@@ -74,15 +97,8 @@ const Profile = () => {
           <Input label="Name" name="name" value={form.name} onChange={onChange} error={errors.name} />
           <Input label="Phone" name="phone" value={form.phone} onChange={onChange} error={errors.phone} />
           <Input label="Email" type="email" name="email" value={form.email} onChange={onChange} error={errors.email} />
-          <div className="flex items-center justify-between">
-            {savedAt ? (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                Saved locally at {savedAt.toLocaleTimeString()}
-              </p>
-            ) : (
-              <span />
-            )}
-            <Button type="submit" loading={saving}>Save</Button>
+          <div className="flex justify-end">
+            <Button type="submit" loading={updateMut.isPending}>Save</Button>
           </div>
         </form>
       </Card>

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   dailyReport,
   weeklyReport,
   monthlyReport,
   customReport,
+  dailySeries,
 } from '../../api/sales';
 import { listUsers } from '../../api/users';
 import { Card } from '../../components/ui/Card';
@@ -13,14 +14,13 @@ import { Spinner } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SalesBarChart } from '../../components/charts/SalesBarChart';
 import { SalesLineChart } from '../../components/charts/SalesLineChart';
-import { Badge } from '../../components/ui/Badge';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
-import { BarChart3, Trophy, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, Trophy, TrendingUp, Calendar, ListFilter } from 'lucide-react';
 
 const TABS = [
-  { id: 'daily', label: 'Daily' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' },
+  { id: 'daily', label: 'Today' },
+  { id: 'weekly', label: 'This Week' },
+  { id: 'monthly', label: 'This Month' },
   { id: 'custom', label: 'Custom' },
 ];
 
@@ -124,9 +124,26 @@ const Reports = () => {
     queryFn: () => listUsers({ limit: 100 }),
   });
 
+  // Build a stable query key so any filter change refetches.
+  const queryKey = ['report', tab, { startDate, endDate, range, salesmanId }];
+
   const reportQuery = useQuery({
-    queryKey: ['report', tab, { startDate, endDate, range, salesmanId }],
+    queryKey,
     queryFn: async () => {
+      // If a salesman is picked, use customReport for daily/weekly/monthly too,
+      // because dailyReport/weeklyReport/monthlyReport don't accept salesmanId.
+      const sid = salesmanId || undefined;
+      if (sid) {
+        if (tab === 'daily') return customReport({ range: 'daily', salesmanId: sid });
+        if (tab === 'weekly') return customReport({ range: 'weekly', salesmanId: sid });
+        if (tab === 'monthly') return customReport({ range: 'monthly', salesmanId: sid });
+        return customReport({
+          range,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          salesmanId: sid,
+        });
+      }
       if (tab === 'daily') return dailyReport();
       if (tab === 'weekly') return weeklyReport();
       if (tab === 'monthly') return monthlyReport();
@@ -134,23 +151,53 @@ const Reports = () => {
         range,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        salesmanId: salesmanId || undefined,
       });
     },
-    enabled:
-      tab !== 'custom' || (!!startDate && !!endDate),
+    enabled: tab !== 'custom' || (!!startDate && !!endDate),
   });
 
   const report = reportQuery.data;
+
+  // Daily breakdown chart for the chosen period (uses daily-series which already filters by salesman if needed).
+  const rangeForSeries = useMemo(() => {
+    if (tab === 'daily') return 'daily';
+    if (tab === 'weekly') return 'weekly';
+    if (tab === 'monthly') return 'monthly';
+    return range; // custom
+  }, [tab, range]);
+
+  const seriesQuery = useQuery({
+    queryKey: ['report-series', rangeForSeries, salesmanId, startDate, endDate],
+    queryFn: async () => {
+      // Build explicit from/to from the chosen range and use the daily-series endpoint
+      const today = new Date();
+      let from, to;
+      const day = (d) => new Date(new Date(d).setHours(0, 0, 0, 0));
+      const end = (d) => new Date(new Date(d).setHours(23, 59, 59, 999));
+      if (rangeForSeries === 'daily') {
+        from = day(today); to = end(today);
+      } else if (rangeForSeries === 'weekly') {
+        const ws = new Date(today); ws.setDate(today.getDate() - 6); from = day(ws); to = end(today);
+      } else if (rangeForSeries === 'monthly') {
+        const ms = new Date(today.getFullYear(), today.getMonth(), 1); from = day(ms); to = end(today);
+      } else {
+        from = startDate ? day(startDate) : null;
+        to = endDate ? end(endDate) : null;
+        if (!from || !to) return [];
+      }
+      const fmt = (d) => d.toISOString();
+      return dailySeries({ from: fmt(from), to: fmt(to), salesmanId: salesmanId || undefined });
+    },
+  });
 
   const chartData = (report?.bySalesman || []).map((r) => ({
     name: r.salesman?.name || 'Unknown',
     totalAmount: r.totalAmount,
   }));
 
-  const lineData = chartData.map((c, i) => ({
-    date: c.name,
-    totalAmount: c.totalAmount,
+  const lineData = (seriesQuery.data || []).map((d) => ({
+    date: d.date,
+    totalAmount: d.totalAmount,
   }));
 
   return (
@@ -180,46 +227,52 @@ const Reports = () => {
         </div>
       </Card>
 
-      {tab === 'custom' && (
-        <Card>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <Select
-              label="Range"
-              value={range}
-              onChange={(e) => setRange(e.target.value)}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="custom">Custom Range</option>
-            </Select>
-            <Input
-              label="Start Date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Input
-              label="End Date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-            <Select
-              label="Salesman"
-              value={salesmanId}
-              onChange={(e) => setSalesmanId(e.target.value)}
-            >
-              <option value="">All salesmen</option>
-              {(usersData?.items || []).map((u) => (
+      {/* Filters — shown on every tab */}
+      <Card>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Select
+            label="Salesman"
+            value={salesmanId}
+            onChange={(e) => setSalesmanId(e.target.value)}
+          >
+            <option value="">All salesmen</option>
+            {(usersData?.items || [])
+              .filter((u) => u.role === 'salesman')
+              .map((u) => (
                 <option key={u._id} value={u._id}>
                   {u.name}
                 </option>
               ))}
-            </Select>
-          </div>
-        </Card>
-      )}
+          </Select>
+
+          {tab === 'custom' && (
+            <>
+              <Select
+                label="Range"
+                value={range}
+                onChange={(e) => setRange(e.target.value)}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="custom">Custom Range</option>
+              </Select>
+              <Input
+                label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <Input
+                label="End Date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </>
+          )}
+        </div>
+      </Card>
 
       {reportQuery.isLoading || reportQuery.isFetching ? (
         <div className="flex items-center justify-center py-12">
@@ -230,23 +283,29 @@ const Reports = () => {
           <EmptyState
             icon={BarChart3}
             title="No data"
-            description="Try adjusting the filters"
+            description="Try adjusting the filters or pick a date range for Custom."
           />
         </Card>
       ) : (
         <>
           <ReportSummary report={report} />
 
-          {chartData.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card title="Sales by Salesman">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card title="Sales by Salesman">
+              {chartData.length > 0 ? (
                 <SalesBarChart data={chartData} height={280} />
-              </Card>
-              <Card title="Performance Trend">
-                <SalesLineChart data={lineData} xKey="date" height={280} />
-              </Card>
-            </div>
-          )}
+              ) : (
+                <EmptyState icon={BarChart3} title="No data" />
+              )}
+            </Card>
+            <Card title={salesmanId ? 'Sales Trend (this salesman)' : 'Sales Trend'}>
+              {lineData.length > 0 ? (
+                <SalesLineChart data={lineData} height={280} />
+              ) : (
+                <EmptyState icon={TrendingUp} title="No data" />
+              )}
+            </Card>
+          </div>
 
           <Card title="Breakdown by Salesman" padding="p-0">
             <ReportTable report={report} />

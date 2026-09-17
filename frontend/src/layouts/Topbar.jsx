@@ -1,10 +1,12 @@
-import { Menu, Moon, Sun, Bell } from 'lucide-react';
+import { Menu, Moon, Sun, Bell, RefreshCw } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
+import { useRefreshDashboard } from '../hooks/useRefreshDashboard.jsx';
 
 export const Topbar = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
+  const { refresh, isRefreshing, lastRefreshedAt } = useRefreshDashboard();
 
   return (
     <header
@@ -35,6 +37,21 @@ export const Topbar = ({ onMenuClick }) => {
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={refresh}
+            disabled={isRefreshing}
+            title={
+              lastRefreshedAt
+                ? `Last refreshed ${lastRefreshedAt.toLocaleTimeString()}`
+                : 'Refresh all dashboard data'
+            }
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 relative active:scale-95 transition disabled:opacity-60 disabled:cursor-progress"
+            aria-label="Refresh dashboard"
+          >
+            <RefreshCw
+              className={`h-5 w-5 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`}
+            />
+          </button>
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition active:scale-95"

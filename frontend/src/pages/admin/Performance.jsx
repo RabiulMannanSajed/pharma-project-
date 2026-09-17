@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { listUsers } from '../../api/users';
-import { mySales } from '../../api/sales';
+import { performanceBySalesman } from '../../api/sales';
 import { Card } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { Badge } from '../../components/ui/Badge';
@@ -10,35 +11,27 @@ import { formatCurrency, formatNumber } from '../../utils/formatters';
 import { TrendingUp, Award, Eye } from 'lucide-react';
 
 const Performance = () => {
+  const [range, setRange] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  // Active salesmen — to show in the list even when they have no sales yet.
   const usersQuery = useQuery({
     queryKey: ['users', 'performance'],
     queryFn: () => listUsers({ limit: 100, role: 'salesman' }),
   });
 
-  const salesmen = (usersQuery.data?.items || []).filter((u) => u.role === 'salesman');
-
-  const salesQueries = useQuery({
-    queryKey: ['sales', 'all-for-performance'],
-    queryFn: async () => {
-      const all = [];
-      let page = 1;
-      while (true) {
-        const res = await fetch(`/api/sales?page=${page}&limit=100`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('psm_token')}` },
-        });
-        const json = await res.json();
-        // Backend wraps as { success, statusCode, message, data: { items, pagination } }
-        const d = json?.data || json;
-        all.push(...(d.items || []));
-        if (!d.pagination || page >= d.pagination.totalPages) break;
-        page += 1;
-        if (page > 50) break;
-      }
-      return all;
-    },
+  // Single aggregate call — no client-side paging of full sales collection.
+  const salesQuery = useQuery({
+    queryKey: ['sales', 'performance', { range, from, to }],
+    queryFn: () =>
+      performanceBySalesman({
+        from: range === 'all' || !from ? undefined : from,
+        to: range === 'all' || !to ? undefined : to,
+      }),
   });
 
-  if (usersQuery.isLoading) {
+  if (usersQuery.isLoading || salesQuery.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Spinner size="lg" />
@@ -46,24 +39,37 @@ const Performance = () => {
     );
   }
 
-  const allSales = salesQueries.data || [];
-  const performanceData = salesmen.map((u) => {
-    const uSales = allSales.filter((s) => (s.salesman?._id || s.salesman) === u._id);
-    const totalAmount = uSales.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-    return {
-      _id: u._id,
-      name: u.name,
-      email: u.email,
-      isActive: u.isActive,
-      totalSales: uSales.length,
-      totalAmount,
-    };
-  }).sort((a, b) => b.totalAmount - a.totalAmount);
+  if (usersQuery.isError || salesQuery.isError) {
+    return (
+      <Card>
+        <p className="text-rose-600 dark:text-rose-400">
+          Failed to load performance data. Please retry.
+        </p>
+      </Card>
+    );
+  }
 
-  const chartData = performanceData.map((p) => ({
-    name: p.name,
-    totalAmount: p.totalAmount,
-  }));
+  // Merge: every active salesman with zeros, plus any with sales from the aggregate.
+  const allSalesmen = (usersQuery.data?.items || []).filter((u) => u.role === 'salesman');
+  const perfMap = new Map((salesQuery.data || []).map((p) => [p.salesman._id, p]));
+
+  const performanceData = allSalesmen
+    .map((u) => {
+      const p = perfMap.get(u._id);
+      return {
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        isActive: u.isActive,
+        totalSales: p?.totalSales || 0,
+        totalAmount: p?.totalAmount || 0,
+      };
+    })
+    .sort((a, b) => b.totalAmount - a.totalAmount);
+
+  const chartData = performanceData
+    .filter((p) => p.totalAmount > 0)
+    .map((p) => ({ name: p.name, totalAmount: p.totalAmount }));
 
   return (
     <div className="space-y-6">
@@ -74,6 +80,44 @@ const Performance = () => {
         </p>
       </div>
 
+      <Card>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label className="label">Range</label>
+            <select
+              className="input"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+            >
+              <option value="all">All time</option>
+              <option value="custom">Custom date range</option>
+            </select>
+          </div>
+          {range === 'custom' && (
+            <>
+              <div>
+                <label className="label">From</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">To</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+
       {performanceData.length === 0 ? (
         <Card>
           <p className="text-center text-slate-500 dark:text-slate-400 py-8">
@@ -82,9 +126,17 @@ const Performance = () => {
         </Card>
       ) : (
         <>
-          <Card title="Total Sales by Salesman">
-            <PerformanceChart data={chartData} height={320} />
-          </Card>
+          {chartData.length > 0 ? (
+            <Card title="Total Sales by Salesman">
+              <PerformanceChart data={chartData} height={320} />
+            </Card>
+          ) : (
+            <Card>
+              <p className="text-center text-slate-500 dark:text-slate-400 py-6">
+                No sales in the selected period.
+              </p>
+            </Card>
+          )}
 
           <Card title="Leaderboard" padding="p-0">
             <div className="overflow-x-auto">
@@ -133,7 +185,11 @@ const Performance = () => {
                         {formatCurrency(p.totalAmount)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {p.isActive ? <Badge color="green">Active</Badge> : <Badge color="red">Inactive</Badge>}
+                        {p.isActive ? (
+                          <Badge color="green">Active</Badge>
+                        ) : (
+                          <Badge color="red">Inactive</Badge>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link

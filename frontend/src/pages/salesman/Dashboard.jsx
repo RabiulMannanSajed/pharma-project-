@@ -1,18 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
 import { salesmanDashboard } from '../../api/dashboard';
+import { dailySeries } from '../../api/sales';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/StatCard';
 import { Spinner } from '../../components/ui/Spinner';
 import { SalesLineChart } from '../../components/charts/SalesLineChart';
 import { AttendancePieChart } from '../../components/charts/AttendancePieChart';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
-import { Badge } from '../../components/ui/Badge';
 import { DollarSign, ShoppingBag, TrendingUp, CalendarCheck, Target, Award } from 'lucide-react';
 
 const Dashboard = () => {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard', 'salesman'],
     queryFn: salesmanDashboard,
+  });
+
+  // Per-day sales for the last 7 days (drives the weekly line chart).
+  const seriesQuery = useQuery({
+    queryKey: ['dashboard', 'salesman', 'series'],
+    queryFn: () => {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(today.getDate() - 6);
+      return dailySeries({
+        from: from.toISOString(),
+        to: today.toISOString(),
+      });
+    },
   });
 
   if (isLoading) {
@@ -26,30 +40,33 @@ const Dashboard = () => {
   if (isError) {
     return (
       <Card>
-        <p className="text-rose-600">Failed to load dashboard</p>
+        <p className="text-rose-600 dark:text-rose-400">Failed to load dashboard</p>
       </Card>
     );
   }
 
+  // Backend salesmanDashboard() returns { today, week, month, stats }.
   const d = data || {};
-  const summary = d.summary || {};
-  const charts = d.charts || {};
-  const stats = d.personalStats || d.stats || {};
+  const today = d.today || {};
+  const week = d.week || {};
+  const month = d.month || {};
+  const stats = d.stats || {};
 
-  const weeklyData = (charts.weeklyChart || charts.dailySalesThisWeek || []).map((d) => ({
-    date: d.date || d.day,
-    totalAmount: d.totalAmount || d.amount,
+  const weeklyData = (seriesQuery.data || []).map((p) => ({
+    date: p.date,
+    totalAmount: p.totalAmount,
   }));
 
-  const monthlyData = (charts.monthlyChart || []).map((m) => ({
-    date: m.date || m.day,
-    totalAmount: m.totalAmount || m.amount,
-  }));
+  // BestSalesDay is the single highest-grossing day in history; use it as the
+  // one-point monthly highlight so the chart still has something to render.
+  const monthlyData = stats.bestSalesDay
+    ? [{ date: stats.bestSalesDay._id, totalAmount: stats.bestSalesDay.totalAmount }]
+    : [];
 
-  const attendanceData = Object.entries(charts.attendanceThisMonth || charts.attendanceToday || {}).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const attendanceData =
+    stats.attendancePercentage != null
+      ? [{ name: 'Attendance %', value: stats.attendancePercentage }]
+      : [];
 
   return (
     <div className="space-y-6">
@@ -62,26 +79,28 @@ const Dashboard = () => {
         <StatCard
           icon={DollarSign}
           label="Today's Sales"
-          value={formatCurrency(summary.totalSalesToday)}
-          hint={`${summary.numberOfSalesToday || 0} sales`}
+          value={formatCurrency(today.totalSales)}
+          hint={`${today.numberOfSales || 0} sales`}
           color="emerald"
         />
         <StatCard
           icon={CalendarCheck}
           label="Today's Attendance"
-          value={summary.todayAttendanceStatus || 'Not marked'}
+          value={today.attendanceStatus || 'Not marked'}
           color="sky"
         />
         <StatCard
           icon={TrendingUp}
           label="This Week"
-          value={formatCurrency(summary.totalSalesThisWeek)}
+          value={formatCurrency(week.totalSales)}
+          hint={`${week.numberOfSales || 0} sales`}
           color="brand"
         />
         <StatCard
           icon={ShoppingBag}
           label="This Month"
-          value={formatCurrency(summary.totalSalesThisMonth)}
+          value={formatCurrency(month.totalSales)}
+          hint={`${month.numberOfSales || 0} sales`}
           color="violet"
         />
       </div>
@@ -91,6 +110,7 @@ const Dashboard = () => {
           icon={Award}
           label="Total Sales"
           value={formatCurrency(stats.totalSales)}
+          hint={stats.totalNumberOfSales ? `${formatNumber(stats.totalNumberOfSales)} sales all-time` : null}
           color="amber"
         />
         <StatCard
@@ -102,8 +122,8 @@ const Dashboard = () => {
         <StatCard
           icon={TrendingUp}
           label="Best Sales Day"
-          value={stats.bestSalesDay ? formatCurrency(stats.bestSalesDay.amount) : '—'}
-          hint={stats.bestSalesDay?.date}
+          value={stats.bestSalesDay ? formatCurrency(stats.bestSalesDay.totalAmount) : '—'}
+          hint={stats.bestSalesDay?._id}
           color="emerald"
         />
         <StatCard
@@ -121,7 +141,7 @@ const Dashboard = () => {
           </Card>
         )}
         {monthlyData.length > 0 && (
-          <Card title="Monthly Performance">
+          <Card title="Best Sales Day">
             <SalesLineChart data={monthlyData} height={260} />
           </Card>
         )}

@@ -1,13 +1,69 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { updateMe } from '../../api/auth';
 import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Mail, Phone, Calendar, KeyRound } from 'lucide-react';
 import { formatDate } from '../../utils/formatters';
-import { useAuth } from '../../hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { isEmail, isPhone } from '../../utils/validators';
+import toast from 'react-hot-toast';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: user?.name || '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+  });
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setForm({
+      name: user?.name || '',
+      phone: user?.phone || '',
+      email: user?.email || '',
+    });
+  }, [user]);
+
+  const updateMut = useMutation({
+    mutationFn: updateMe,
+    onSuccess: (data) => {
+      const fresh = data?.data || data;
+      updateProfile(fresh);
+      qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Profile updated');
+    },
+    onError: (e) => toast.error(e?.message || 'Failed to update'),
+  });
+
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+    if (errors[name]) setErrors((er) => ({ ...er, [name]: undefined }));
+  };
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!form.name || form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
+    if (!form.phone) errs.phone = 'Phone is required';
+    else if (!isPhone(form.phone)) errs.phone = 'Invalid phone';
+    if (!form.email || !isEmail(form.email)) errs.email = 'Invalid email';
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    updateMut.mutate({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+    });
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -35,6 +91,17 @@ const Profile = () => {
         </div>
       </Card>
 
+      <Card title="Edit Details">
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
+          <Input label="Name" name="name" value={form.name} onChange={onChange} error={errors.name} />
+          <Input label="Phone" name="phone" value={form.phone} onChange={onChange} error={errors.phone} />
+          <Input label="Email" type="email" name="email" value={form.email} onChange={onChange} error={errors.email} />
+          <div className="flex justify-end">
+            <Button type="submit" loading={updateMut.isPending}>Save</Button>
+          </div>
+        </form>
+      </Card>
+
       <Card>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -50,12 +117,6 @@ const Profile = () => {
             <Button variant="secondary">Change Password</Button>
           </Link>
         </div>
-      </Card>
-
-      <Card>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          Contact your administrator if you need to update your name, phone, or email.
-        </p>
       </Card>
     </div>
   );

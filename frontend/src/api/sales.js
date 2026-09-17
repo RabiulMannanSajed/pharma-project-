@@ -19,3 +19,5 @@ export const monthlyReport = () => api.get('/sales/monthly');
 export const customReport = (params = {}) => api.get('/sales/reports/custom', { params });
 
 export const dailySeries = (params = {}) => api.get('/sales/reports/daily-series', { params });
+
+export const performanceBySalesman = (params = {}) => api.get('/sales/reports/performance', { params });
